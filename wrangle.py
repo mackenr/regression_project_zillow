@@ -27,7 +27,7 @@ from sklearn.model_selection import train_test_split
 
 def sql_database_info_probe(schema_input='zillow'):
     '''
-    returns a list of tables
+    just a way of exploring all the tables within a schema to save time. It also gives the size in MB
 
 
     '''
@@ -58,19 +58,18 @@ def sql_database_info_probe(schema_input='zillow'):
     tablenames = [x[0] for x in [list(i) for i in info2.values]]
     display(
         f'In {schema} you have the following table names and their sizes:', info2)
-    x = [(pd.read_sql(f'describe {x}', get_db_url(schema)))for x in tablenames]
+    x = []
+    [x.append(pd.read_sql(f'describe {i}', get_db_url(schema)))for i in tablenames]
     [display(sympify(f'{(tablenames[i]).capitalize()}'), k)
      for i, k in enumerate(x)]
-
-
-    y = [(i.Field).str.split() for i in x]
-    return y
+    
 
 
 
 def remove_outliers_v2(df, k, col_list):
     ''' remove outliers from a list of columns in a dataframe 
-        and return that dataframe
+        and return that dataframe. This was a gift from our instructor. It is an implementation of the Tukey method.
+        https://en.wikipedia.org/wiki/Tukey%27s_range_test
     '''
     # Create a column that will label our rows as containing an outlier value or not
     num_obs = df.shape[0]
@@ -110,68 +109,33 @@ def get_db_url(db, env_file=env):
         return 'you need some credentials to access a database usually and I dont want you to type them here.'
 
 def new_zillow_2017():
+    '''
+    Here I selected every colomun I could where the non-null was greater than 50k to minimize the data cleaning,
+    additionally I did not need to join the third table as I only needed the propertylandusetypeid type from them. I was able to
+    obtain that through an exploritory call.
+
+
+    '''
+
     schema='zillow'
 
     query='''
     select
-    airconditioningtypeid,
-    architecturalstyletypeid,
     assessmentyear,
-    basementsqft,
     bathroomcnt,
     bedroomcnt,
-    buildingclasstypeid,
-    buildingqualitytypeid,
     calculatedbathnbr,
     calculatedfinishedsquarefeet,
-    censustractandblock,
-    decktypeid,
-    finishedfloor1squarefeet,
-    finishedsquarefeet12,
-    finishedsquarefeet13,
-    finishedsquarefeet15,
-    finishedsquarefeet50,
-    finishedsquarefeet6,
     fips,
-    fireplacecnt,
-    fireplaceflag,
     fullbathcnt,
-    garagecarcnt,
-    garagetotalsqft,
-    hashottuborspa,
-    heatingorsystemtypeid,
     prop.id,
     latitude,
     logerror,
     longitude,
     lotsizesquarefeet,
-    numberofstories,
-    prop.parcelid,
-    poolcnt,
-    poolsizesum,
-    pooltypeid10,
-    pooltypeid2,
-    pooltypeid7,
-    propertycountylandusecode,
-    propertylandusetypeid,
-    propertyzoningdesc,
-    rawcensustractandblock,
-    regionidcity,
-    regionidcounty,
-    regionidneighborhood,
-    regionidzip,
-    roomcnt,
-    storytypeid,
-    taxdelinquencyflag,
-    taxdelinquencyyear,
     taxvaluedollarcnt,
-    threequarterbathnbr,
     transactiondate,
-    typeconstructiontypeid,
-    unitcnt,
-    yardbuildingsqft17,
-    yardbuildingsqft26,
-    yearbuilt    
+    yearbuilt
     from
     properties_2017 prop
     join
@@ -183,11 +147,16 @@ def new_zillow_2017():
     or
     propertylandusetypeid=279
     and
-    transactiondate like '%%2017%%')
+    transactiondate like '2017')
     
     
     
     '''
+
+    
+    
+    
+    
     return pd.read_sql(query, get_db_url(schema))
 
 
@@ -221,51 +190,6 @@ def get_zillow_2017():
 
 
 
-def prep_zillow_2017(k=1.25,random_state=123,sizearr=[.2,.3],dftarget='taxvaluedollarcnt'):
-    '''
-    returns df
-    
-    
-    
-    '''
-    df=get_zillow_2017()
-   
-    x1=len(df)
-    
-    cols=df.columns.to_list()
-    
-    df=remove_outliers_v2(df=df, k=k, col_list=cols)
-    df.drop(columns=['outlier'],inplace=True)
-
-    ## Assuming worst case that each NaN is indepedent we drop one percent of our data, so we will drop all is null
-
-    df.dropna(inplace=True)
-   
-
-    ## Actual Percent Change
-    
-    df['decade']=df.yearbuilt.apply(decademap)
-    
-   
-    x2=len(df)
-    percentchangeafterdrop=round(((x2-x1)/x1)*100,2)
-    meankurt=df.kurt().mean()
-    display(print(f'This is our percent change after removing all the outliers and then the nulls:\n {percentchangeafterdrop}%\nmean kurt:\n{meankurt}'))
-    df['bathdividesbed']=df.bedroomcnt/df.bathroomcnt
-    df['bedbathbeyonddividestaxval']=df.taxvaluedollarcnt/(df.calculatedfinishedsquarefeet+df.bathroomcnt+df.bedroomcnt)
-    df['beddividesarea']=df.calculatedfinishedsquarefeet/df.bedroomcnt
-    df['bathdividesarea']=df.calculatedfinishedsquarefeet/df.bathroomcnt
-    df['bathplusbathdividesarea']=df.calculatedfinishedsquarefeet/(df.bathroomcnt+df.bedroomcnt)
-   
-    df.fips=df.fips.astype(int)
-    df.yearbuilt=df.yearbuilt.astype(int)
-    df.rename(columns={'calculatedfinishedsquarefeet':'area'},inplace=True)
- 
-    
-   
-    
-    return df
-    
 
 
 
