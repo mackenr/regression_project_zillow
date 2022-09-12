@@ -111,19 +111,25 @@ password='xxxxxx'
 ## Executive Summary:
 
 #### Conclusion:
-We beat the baseline with our models. 
-
-Hence, their predictive power is useful.
-
-We can created a general model that encompasses both locations and it does well.
-
-However it seems useful to split the data and create models that are specific to each county. 
+Conclusion:
+Magie can rest easy:
+Our data all comes from LA or Orange county in California.
+Used FIPS to find the county’s and states.
+ 
+ 
+ 
+Our selected top models all beat or matched baseline. It is worth further exploring hyperparameters and the partitioned data. Also to note there are model selection criteria we could have used. As such it would be worth investigating Mean Absolute Error(MAE) and $ R^2 $ as model selection criteria. Perhaps one model would perform well in each and might be a better general model.
+ 
+Note: There are models that generalize well to all the data and currently the combined data model has better performance than the separated. I think this warrants further investigation as shown by the statistical inquires and simply that our data is roughly 3/4 from LA and 1/4 from OC. Ultimately we would wish to generalize this proves and find the optimal scale : state, county
+,zip, zones based on a measure of central tendency and population density etc. Since we have geodata this is all possible but will take detailed and creative exploratory analysis. 
 
 #### Specific Recommendations:
 It would be nice to exlore the data partitioned by county in more detail.
 
 #### Actionable Example:
 I would like to spend more time creating combinations of variables that predict our taxvaluedollarcnt for the data partitioned by county.
+
+
 
 
 #### Closing Quote:
