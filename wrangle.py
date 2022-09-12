@@ -23,6 +23,131 @@ import sklearn.preprocessing
 from sklearn.model_selection import train_test_split
 
 
+import datetime as dt
+import time
+
+
+
+
+
+# prepped=prep_zillow_2017()
+
+def prep_zillow_2017(k=1.25):
+    '''
+    returns df
+    
+    
+    
+    '''
+    
+    df=get_zillow_2017()
+    print(f'our sql grab:\n {df.shape}')
+
+
+    # lista=df[df.isnull()==False].count().nlargest(n=23,keep='all').index.tolist()
+    # lista.sort()
+    df.transactiondate=pd.to_datetime(df.transactiondate,yearfirst=True )
+    df['transaction_month']=df.transactiondate.dt.month_name()
+    df['transaction_month_int']=df.transactiondate.apply(monthmap)
+
+
+    df=df[df.transactiondate<'2018-01-01']
+    df=df[df.transactiondate>='2017-01-01']
+    ## ensures the dates of transaction are where they need to be
+    print(f'df.transactiondate.min():\n{df.transactiondate.min()}\n\ndf.transactiondate.max():\n{df.transactiondate.max()}')
+    df['transactiondate_in_days']=(df.transactiondate-dt.datetime(2017,1,1)).dt.days
+
+
+    dfj=df
+
+    mwp=['bathroomcnt','bedroomcnt','calculatedfinishedsquarefeet','taxvaluedollarcnt','fips','yearbuilt','id']
+    drop=['bathroomcnt','bedroomcnt','calculatedfinishedsquarefeet','taxvaluedollarcnt','fips','yearbuilt']
+  
+    todrop=set(drop)
+    # mwp=['bathroomcnt','bedroomcnt','calculatedfinishedsquarefeet','taxvaluedollarcnt','fips','yearbuilt']
+    colsdfj=set(dfj.columns)
+    dfjkeep=list(colsdfj-todrop)
+
+    dfj=dfj[dfjkeep]
+   
+    df=df[mwp]
+    df_6037=df[df.fips==6037]
+    df_6059=df[df.fips==6059]
+
+
+    
+
+  
+
+
+
+
+    x1=len(df)
+
+    cols=df.columns.to_list()
+    #Here I seperated by each fips(county) removed the outliesrs from each then remerged them using an outer joint to protect the keys of each. This was done to protect the indvidual integrity of each subgroup
+
+    df_6037=remove_outliers_v2(df=df_6037, k=k, col_list=cols)
+    df_6037.drop(columns=['outlier'],inplace=True)
+   
+    df_6059=remove_outliers_v2(df=df_6059, k=k, col_list=cols)
+    df_6059.drop(columns=['outlier'],inplace=True)
+
+    df=pd.merge(df_6037, df_6059, how='outer',on=mwp)
+
+  
+
+
+
+
+
+    # here I did just made some changes for readbility
+    df.dropna(inplace=True)
+
+    df.fips=df.fips.astype(int)
+    df['decade']=df.yearbuilt.apply(decademap)
+    ## Actual Percent Change
+
+
+  
+    meankurt=df.kurt().mean()
+
+
+
+
+    # Merge two DataFrames by index using pandas.merge()
+    ## This merge just brings back all the additional non numeric cols using an inner merge so the nulls are dropped this was required because the tukey method as implempmented onlyh works with numeric data
+    df = pd.merge(df, dfj, on='id', how='inner')
+
+
+    # display(df.head(),df.info(verbose=True),df.describe(include='all'),df.shape)
+    x2=len(df)
+    percentchangeafterdrop=round(((x2-x1)/x1)*100,2)
+
+
+    # here I did some feature engineering to see if there was any observational changes in relationships
+    df['bed+bath*area']=(df.bedroomcnt+df.bathroomcnt)*df.calculatedfinishedsquarefeet
+    df['beddivdesbath']=(df.bedroomcnt/df.bathroomcnt)
+    df['bathdividesbed']=(df.bathroomcnt/df.bedroomcnt)
+    df['bedbath_harmean*area']=((df.bedroomcnt+df.bathroomcnt)**-1)*df.calculatedfinishedsquarefeet
+    df['sqrt(bed^2+bath^2)*area']=((df.bedroomcnt**2+df.bathroomcnt**2)**(1/2))*df.calculatedfinishedsquarefeet
+    df['bathdividesarea']=df.calculatedfinishedsquarefeet/df.bathroomcnt
+    df['bathplusbathdividesarea']=df.calculatedfinishedsquarefeet/(df.bathroomcnt+df.bedroomcnt)
+    df=calfipsmapper(df)
+    df.rename(columns={'calculatedfinishedsquarefeet':'area'},inplace=True)
+    df['lotsizesquarefeet_wo_outliers']=df.lotsizesquarefeet[df.lotsizesquarefeet<df.lotsizesquarefeet.quantile(q=0.85, interpolation='linear')]
+
+    display(print(f'This is our percent change after removing all the outliers and merging :\n {percentchangeafterdrop}%\nmean kurt:\n{meankurt}\nfinal shape:\n{ df.shape}'),(df[['id','county']].groupby(by=['county']).nunique()/len(df)).style.format(lambda x:f'{x*100:.2f}%').set_caption(caption="Prepped Data \n Percentage per county"))
+    return df
+
+   
+
+ 
+    
+   
+    
+    # return df
+
 
 
 def sql_database_info_probe(schema_input='zillow'):
@@ -269,7 +394,7 @@ def decademap(x):
 
 
 
-def train_validate_test(df, target,sizearr=[.2,.3],random_state=123):
+def train_validate_test(df, sizearr=[.2,.3],random_state=123):
     """
     this function takes in a dataframe and splits it into 3 samples,
     a test, which is 20% of the entire dataframe,
@@ -281,11 +406,18 @@ def train_validate_test(df, target,sizearr=[.2,.3],random_state=123):
     X_train (df) & y_train (series), X_validate & y_validate, X_test & y_test.
     """
     # split df into test (20%) and train_validate (80%)
-    train_validate, test = train_test_split(df, test_size=sizearr[0], random_state=123)
+    train_validate, test = train_test_split(df, test_size=sizearr[0], random_state=random_state)
 
     # split train_validate off into train (70% of 80% = 56%) and validate (30% of 80% = 24%)
-    train, validate = train_test_split(train_validate, test_size=sizearr[1], random_state=123)
+    train, validate = train_test_split(train_validate, test_size=sizearr[1], random_state=random_state)
 
+  
+
+    return train,  validate,  test
+
+
+
+def bigX_little_y(train,  validate,  test, target):
     # split train into X (dataframe, drop target) & y (series, keep target only)
     X_train = train.drop(columns=[target])
     y_train = train[target]
@@ -298,7 +430,8 @@ def train_validate_test(df, target,sizearr=[.2,.3],random_state=123):
     X_test = test.drop(columns=[target])
     y_test = test[target]
 
-    return X_train, y_train, X_validate, y_validate, X_test, y_test
+    return X_train,y_train,X_validate,y_validate,X_test,y_test
+
 
 
 def calfipsmapper(df):
@@ -314,3 +447,17 @@ def calfipsmapper(df):
 
 
  
+
+def monthmap(x):
+    '''
+     Created to obtain a month from a datatime   
+    '''
+    
+    return x.month
+
+
+
+
+
+
+
