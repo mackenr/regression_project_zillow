@@ -15,11 +15,25 @@ Zillow Project
 - The goal is to use data to find and explore predictive factors of home value.
 - Ultimately we hope to use these factors to accurateley asses home values for zillow.
 
-## Questions:
+## Questions/ Hypotheses
+
 
 Questions:
 
-Generally I am interested in if time or location is significant to consider in this data. The specific questions we ask aboout this are asked in the mvp.ipynb file.
+Generally I am interested in if time or location is significant to consider in this data. The specific questions we ask aboout this are asked in the finalreport.ipynb file.
+
+
+General Hypotheses:
+ 
+The county is a distinct difference.
+ 
+The distributions are dependent of time.
+ 
+(Variations of these are created inline  finalreport.ipynb file)
+ 
+Pendantical note: We only formally state the null hypotheses in the report as they are the only ones tested and the alternates are the logical inverses and therefore need not to be rigorously defined. For the sake of the reader alternate or alternates are translated into more colloquial terms relative to the statistical tests.
+interpreted
+ 
 
 
 
