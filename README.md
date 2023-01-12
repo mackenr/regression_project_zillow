@@ -55,8 +55,8 @@ Note: the target variable is taxvaluedollarcnt
 |bathdividesbed|                          float64|
 |bathplusbathdividesarea|                 float64|
 |bathroomcnt|                             float64|
-|bed|+bath*area                           float64|
-|bedbath_harmean|*area                    float64|
+|(bed+bath)*area|                         float64|
+|bedbath_harmean*area|                    float64|
 |beddivdesbath|                           float64|
 |bedroomcnt|                              float64|
 |calculatedbathnbr|                       float64|
@@ -71,7 +71,7 @@ Note: the target variable is taxvaluedollarcnt
 |lotsizesquarefeet|                       float64|
 |lotsizesquarefeet_wo_outliers|           float64|
 |roomcnt|                                 float64|
-|sqrt(bed^2+bath^2)*area|                 float64|
+|$\sqrt{bed^2+bath^2}\times{area}$|       float64|
 |taxvaluedollarcnt|                       float64|
 |transaction_month|                        object|
 |transaction_month_int|                     int64|
@@ -132,7 +132,7 @@ Used FIPS to find the county’s and states.
  
  
  
-Our selected top models all beat or matched baseline. It is worth further exploring hyperparameters and the partitioned data. Also to note there are model selection criteria we could have used. As such it would be worth investigating Mean Absolute Error(MAE) and $ R^2 $ as model selection criteria. Perhaps one model would perform well in each and might be a better general model.
+Our selected top models all beat or matched baseline. It is worth further exploring hyperparameters and the partitioned data. Also to note there are model selection criteria we could have used. As such it would be worth investigating Mean Absolute Error(MAE) and $R^2$ as model selection criteria. Perhaps one model would perform well in each and might be a better general model.
  
 Note: There are models that generalize well to all the data and currently the combined data model has better performance than the separated. I think this warrants further investigation as shown by the statistical inquires and simply that our data is roughly 3/4 from LA and 1/4 from OC. Ultimately we would wish to generalize this proves and find the optimal scale : state, county
 ,zip, zones based on a measure of central tendency and population density etc. Since we have geodata this is all possible but will take detailed and creative exploratory analysis. 

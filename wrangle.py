@@ -19,7 +19,7 @@ from functools import reduce
 from itertools import combinations , product
 from scipy.stats import zscore
 from sklearn.impute import SimpleImputer
-import sklearn.preprocessing
+from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 
 
@@ -41,7 +41,9 @@ def prep_zillow_2017(k=1.25):
     '''
     
     df=get_zillow_2017()
+    fullsfips=df.fips.value_counts()
     print(f'our sql grab:\n {df.shape}')
+    
 
 
     # lista=df[df.isnull()==False].count().nlargest(n=23,keep='all').index.tolist()
@@ -49,19 +51,23 @@ def prep_zillow_2017(k=1.25):
     df.transactiondate=pd.to_datetime(df.transactiondate,yearfirst=True )
     df['transaction_month']=df.transactiondate.dt.month_name()
     df['transaction_month_int']=df.transactiondate.apply(monthmap)
+   
 
 
     df=df[df.transactiondate<'2018-01-01']
     df=df[df.transactiondate>='2017-01-01']
+
+    print(f'after ensuring dates sql grab:\n {df.shape}')
     ## ensures the dates of transaction are where they need to be
     print(f'df.transactiondate.min():\n{df.transactiondate.min()}\n\ndf.transactiondate.max():\n{df.transactiondate.max()}')
     df['transactiondate_in_days']=(df.transactiondate-dt.datetime(2017,1,1)).dt.days
+    df['transactiondate_in_days']= df['transactiondate_in_days']+1 #had issues will zeros
 
 
     dfj=df
 
-    mwp=['bathroomcnt','bedroomcnt','calculatedfinishedsquarefeet','taxvaluedollarcnt','fips','yearbuilt','id']
-    drop=['bathroomcnt','bedroomcnt','calculatedfinishedsquarefeet','taxvaluedollarcnt','fips','yearbuilt']
+    mwp=['bathroomcnt','bedroomcnt','calculatedfinishedsquarefeet','taxvaluedollarcnt','fips','yearbuilt','parcelid','lotsizesquarefeet']
+    drop=['bathroomcnt','bedroomcnt','calculatedfinishedsquarefeet','taxvaluedollarcnt','fips','yearbuilt','lotsizesquarefeet']
   
     todrop=set(drop)
     # mwp=['bathroomcnt','bedroomcnt','calculatedfinishedsquarefeet','taxvaluedollarcnt','fips','yearbuilt']
@@ -73,6 +79,7 @@ def prep_zillow_2017(k=1.25):
     df=df[mwp]
     df_6037=df[df.fips==6037]
     df_6059=df[df.fips==6059]
+    df_6111=df[df.fips==6111]
 
 
     
@@ -93,7 +100,13 @@ def prep_zillow_2017(k=1.25):
     df_6059=remove_outliers_v2(df=df_6059, k=k, col_list=cols)
     df_6059.drop(columns=['outlier'],inplace=True)
 
+    df_6111=remove_outliers_v2(df=df_6111, k=k, col_list=cols)
+    df_6111.drop(columns=['outlier'],inplace=True)
+
+
+
     df=pd.merge(df_6037, df_6059, how='outer',on=mwp)
+    df=pd.merge(df, df_6111, how='outer',on=mwp)
 
   
 
@@ -117,27 +130,58 @@ def prep_zillow_2017(k=1.25):
 
     # Merge two DataFrames by index using pandas.merge()
     ## This merge just brings back all the additional non numeric cols using an inner merge so the nulls are dropped this was required because the tukey method as implempmented onlyh works with numeric data
-    df = pd.merge(df, dfj, on='id', how='inner')
+    df = pd.merge(df, dfj, on='parcelid', how='inner')
 
 
     # display(df.head(),df.info(verbose=True),df.describe(include='all'),df.shape)
     x2=len(df)
     percentchangeafterdrop=round(((x2-x1)/x1)*100,2)
-
+    
 
     # here I did some feature engineering to see if there was any observational changes in relationships
-    df['bed+bath*area']=(df.bedroomcnt+df.bathroomcnt)*df.calculatedfinishedsquarefeet
-    df['beddivdesbath']=(df.bedroomcnt/df.bathroomcnt)
-    df['bathdividesbed']=(df.bathroomcnt/df.bedroomcnt)
-    df['bedbath_harmean*area']=((df.bedroomcnt+df.bathroomcnt)**-1)*df.calculatedfinishedsquarefeet
-    df['sqrt(bed^2+bath^2)*area']=((df.bedroomcnt**2+df.bathroomcnt**2)**(1/2))*df.calculatedfinishedsquarefeet
-    df['bathdividesarea']=df.calculatedfinishedsquarefeet/df.bathroomcnt
-    df['bathplusbathdividesarea']=df.calculatedfinishedsquarefeet/(df.bathroomcnt+df.bedroomcnt)
-    df=calfipsmapper(df)
-    df.rename(columns={'calculatedfinishedsquarefeet':'area'},inplace=True)
-    df['lotsizesquarefeet_wo_outliers']=df.lotsizesquarefeet[df.lotsizesquarefeet<df.lotsizesquarefeet.quantile(q=0.85, interpolation='linear')]
 
-    display(print(f'This is our percent change after removing all the outliers and merging :\n {percentchangeafterdrop}%\nmean kurt:\n{meankurt}\nfinal shape:\n{ df.shape}'),(df[['id','county']].groupby(by=['county']).nunique()/len(df)).style.format(lambda x:f'{x*100:.2f}%').set_caption(caption="Prepped Data \n Percentage per county"))
+    df['lotsize/area']=df.lotsizesquarefeet/df.calculatedfinishedsquarefeet
+    # df['bedbath_harmean']=(((df.bedroomcnt)**-1+(df.bathroomcnt**-1))*2)
+    # # df['bedbath_harmeandividesarea']=df.calculatedfinishedsquarefeet/ df['bedbath_harmean']
+    # df['sqrt(bed^2+bath^2)']=((df.bedroomcnt**2+df.bathroomcnt**2)**(1/2))
+    # df['sqrt(bed^2+bath^2)dividesarea']=df.calculatedfinishedsquarefeet/ df['sqrt(bed^2+bath^2)']
+    # df['bathplusbathdividesarea']=df.calculatedfinishedsquarefeet/(df.bathroomcnt+df.bedroomcnt)
+    # df['sqrt(bed^2+bath^2)divides(lotsize/area)']= df['lotsize/area']/df['sqrt(bed^2+bath^2)']
+    # df['bedbath_harmean)divides(lotsize/area)']= df['lotsize/area']/ df['bedbath_harmean']
+    df['latscaled']=df.latitude*1e-6
+    df['longscaled']=df.latitude*1e-6
+    df['latlongPythagC']=(df['longscaled']**2+df['latscaled']**2)**.5
+   
+    df=calfipsmapper(df)
+    lat_long_range=list(np.arange(0,1,0.04))  
+    lat_long_range=df.latlongPythagC.quantile(q=lat_long_range, interpolation='linear').tolist()
+    
+   
+   
+    df['Geogroups']=df.latlongPythagC.map(lambda x: latCgroups(x,lat_long_range))
+    le =LabelEncoder()
+    df['Geogroups']=le.fit_transform(df['Geogroups'])
+    df['age']=2017-df.yearbuilt
+    df['agebydecade']=2017-df.decade
+    # df.drop(columns=['transactiondate','latlongPythagC','decade','assessmentyear','longscaled','latscaled','transaction_month_int','transactiondate_in_days','transactiondate_in_days'],inplace=True)
+   
+    df.rename(columns={'calculatedfinishedsquarefeet':'area'},inplace=True)
+   
+
+   
+    
+
+    display(print(f'This is our percent change after removing all the outliers and merging :\n {percentchangeafterdrop}%\nmean kurt:\n{meankurt}\nfinal shape:\n{ df.shape}'),(df[['parcelid','county']].groupby(by=['county']).nunique()/len(df)).style.format(lambda x:f'{x*100:.2f}%').set_caption(caption="Prepped Data \n Percentage per county"),fullsfips)
+    df.drop(columns=['parcelid','assessmentyear','logerror','calculatedbathnbr','fullbathcnt'],inplace=True)
+
+    display(pd.DataFrame(df))
+    cols=list(pd.DataFrame(df).columns)
+    cols.remove('taxvaluedollarcnt')
+    cols.insert(0,'taxvaluedollarcnt')
+    df=df[cols]
+
+    
+
     return df
 
    
@@ -253,7 +297,7 @@ def new_zillow_2017():
     calculatedfinishedsquarefeet,
     fips,
     fullbathcnt,
-    prop.id,
+    prop.parcelid,
     latitude,
     logerror,
     longitude,
@@ -266,7 +310,7 @@ def new_zillow_2017():
     join
     predictions_2017 pred
     on 
-    prop.id = pred.id
+    prop.parcelid = pred.parcelid
     where
     (propertylandusetypeid=261	
     or
@@ -278,7 +322,7 @@ def new_zillow_2017():
     
     '''
 
-    
+    # parcelid was the proper key to join on be careful
     
     
     
@@ -440,8 +484,8 @@ def calfipsmapper(df):
     b=calfipsdf.columns[1]
     calfipsdict=dict(zip(calfipsdf[a],calfipsdf[b]))
     df['county']= df["fips"].map(calfipsdict)
-    df.county=df.county.map({' Los Angeles County':'LA',' Orange County':'Orange'})
-    df.rename(columns={'calculatedfinishedsquarefeet':'area'},inplace=True)
+    df.county=df.county.map({' Los Angeles County':'LA',' Orange County':'Orange',' Ventura County':'Ventura'})
+   
     return df
 
 
@@ -454,6 +498,90 @@ def monthmap(x):
     '''
     
     return x.month
+
+def latCgroups(x,lat_long_range):
+    'makes a lat_long_quantile col when combined with an apply function '
+    
+    
+    if x >= lat_long_range[24]:
+        lat_long_quantile=lat_long_range[24]
+        return lat_long_quantile
+    elif x >= lat_long_range[23]:
+        lat_long_quantile=lat_long_range[23]
+        return lat_long_quantile
+    elif x >= lat_long_range[22]:
+        lat_long_quantile=lat_long_range[22]
+        return lat_long_quantile
+    elif x >= lat_long_range[21]:
+        lat_long_quantile=lat_long_range[21]
+        return lat_long_quantile
+    elif x >= lat_long_range[20]:
+        lat_long_quantile=lat_long_range[20]
+        return lat_long_quantile
+    elif x >= lat_long_range[19]:
+        lat_long_quantile=lat_long_range[19]
+        return lat_long_quantile
+    elif x >= lat_long_range[18]:
+        lat_long_quantile=lat_long_range[18]
+        return lat_long_quantile
+    elif x >= lat_long_range[17]:
+        lat_long_quantile=lat_long_range[17]
+        return lat_long_quantile
+    elif x >= lat_long_range[16]:
+        lat_long_quantile=lat_long_range[16]
+        return lat_long_quantile
+    elif x >= lat_long_range[15]:
+        lat_long_quantile=lat_long_range[15]
+        return lat_long_quantile
+    elif x >= lat_long_range[14]:
+        lat_long_quantile=lat_long_range[14]
+        return lat_long_quantile
+    elif x >= lat_long_range[13]:
+        lat_long_quantile=lat_long_range[13]
+        return lat_long_quantile
+    elif x >= lat_long_range[12]:
+        lat_long_quantile=lat_long_range[12]
+        return lat_long_quantile
+    elif x >= lat_long_range[11]:
+        lat_long_quantile=lat_long_range[11]
+        return lat_long_quantile
+    elif x >= lat_long_range[10]:
+        lat_long_quantile=lat_long_range[10]
+        return lat_long_quantile
+    elif x >= lat_long_range[9]:
+        lat_long_quantile=lat_long_range[9]
+        return lat_long_quantile
+    elif x >= lat_long_range[8]:
+        lat_long_quantile=lat_long_range[8]
+        return lat_long_quantile
+    elif x >= lat_long_range[7]:
+        lat_long_quantile=lat_long_range[7]
+        return lat_long_quantile
+    elif x >= lat_long_range[6]:
+        lat_long_quantile=lat_long_range[6]
+        return lat_long_quantile
+    elif x >= lat_long_range[5]:
+        lat_long_quantile=lat_long_range[5]
+        return lat_long_quantile
+    elif x >= lat_long_range[4]:
+        lat_long_quantile=lat_long_range[4]
+        return lat_long_quantile
+    elif x >= lat_long_range[3]:
+        lat_long_quantile=lat_long_range[3]
+        return lat_long_quantile
+    elif x >= lat_long_range[2]:
+        lat_long_quantile=lat_long_range[2]
+        return lat_long_quantile
+    elif x >= lat_long_range[1]:
+        lat_long_quantile=lat_long_range[1]
+        return lat_long_quantile
+    elif x >= lat_long_range[0]:
+        lat_long_quantile=lat_long_range[0]
+        return lat_long_quantile
+
+
+
+
 
 
 
