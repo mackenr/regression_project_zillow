@@ -174,8 +174,9 @@ def prep_zillow_2017(k=1.25):
     display(print(f'This is our percent change after removing all the outliers and merging :\n {percentchangeafterdrop}%\nmean kurt:\n{meankurt}\nfinal shape:\n{ df.shape}'),(df[['parcelid','county']].groupby(by=['county']).nunique()/len(df)).style.format(lambda x:f'{x*100:.2f}%').set_caption(caption="Prepped Data \n Percentage per county"),fullsfips)
     df.drop(columns=['parcelid','assessmentyear','logerror','calculatedbathnbr','fullbathcnt'],inplace=True)
 
-    display(pd.DataFrame(df))
-    cols=list(pd.DataFrame(df).columns)
+    # display(pd.DataFrame(df))
+    cols=list(df.columns)
+    #ensures the target variable is in the first position
     cols.remove('taxvaluedollarcnt')
     cols.insert(0,'taxvaluedollarcnt')
     df=df[cols]
